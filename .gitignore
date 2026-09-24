@@ -1,0 +1,15 @@
+# Binaries
+/server
+/link-proxy
+
+# Database & logs
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Environment
+.env
+
+# OS / Editor
+.DS_Store

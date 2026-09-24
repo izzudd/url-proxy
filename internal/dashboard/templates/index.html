@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkProxy Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between pb-6 border-b border-slate-800 gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          LinkProxy Gateway
+        </h1>
+        <p class="text-sm text-slate-400 mt-1">High-performance deterministic file proxy & caching gateway</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/docs" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium px-3.5 py-2 rounded-lg transition border border-slate-700">
+          Docs
+        </a>
+        <button onclick="document.getElementById('register-modal').classList.remove('hidden')" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">
+          + Register URL
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Grid -->
+    <div id="stats-container" hx-get="/api/dashboard/stats" hx-trigger="load, every 5s" class="grid grid-cols-1 md:grid-cols-3 gap-6 my-8">
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <p class="text-sm font-medium text-slate-400">Total Registered Files</p>
+        <p class="text-3xl font-bold mt-2 text-white" id="stat-files">-</p>
+      </div>
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <p class="text-sm font-medium text-slate-400">Total Bandwidth Streamed</p>
+        <p class="text-3xl font-bold mt-2 text-indigo-400" id="stat-bandwidth">-</p>
+      </div>
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <p class="text-sm font-medium text-slate-400">Total Stream Requests</p>
+        <p class="text-3xl font-bold mt-2 text-emerald-400" id="stat-access">-</p>
+      </div>
+    </div>
+
+    <!-- Files Table Section -->
+    <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl overflow-hidden shadow-sm">
+      <div class="p-5 border-b border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-slate-200">Tracked Files</h2>
+        <div class="flex items-center gap-2">
+          <input type="text" name="search" placeholder="Search filename or URL..."
+            class="bg-slate-900 border border-slate-700 text-sm rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 w-64"
+            hx-get="/api/dashboard/files" hx-trigger="keyup changed delay:300ms" hx-target="#files-table-body">
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="bg-slate-800/80 text-xs uppercase text-slate-400 border-b border-slate-700/80">
+            <tr>
+              <th class="px-6 py-3">ID</th>
+              <th class="px-6 py-3">Filename</th>
+              <th class="px-6 py-3">Content Type</th>
+              <th class="px-6 py-3">Size</th>
+              <th class="px-6 py-3">Requests</th>
+              <th class="px-6 py-3">Streamed</th>
+              <th class="px-6 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="files-table-body" hx-get="/api/dashboard/files" hx-trigger="load, refreshFiles from:body" class="divide-y divide-slate-800">
+            <tr><td colspan="7" class="px-6 py-4 text-center text-slate-500">Loading files...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Register URL Modal -->
+  <div id="register-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-lg shadow-xl">
+      <h3 class="text-xl font-bold text-slate-100 mb-4">Register File URL</h3>
+      <form id="register-form" onsubmit="handleRegister(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-slate-300 mb-2">Remote URL</label>
+          <input type="url" id="reg-url" required placeholder="https://example.com/archive.zip"
+            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-blue-500">
+        </div>
+        <div id="register-error" class="hidden text-rose-400 text-sm mb-4"></div>
+        <div id="register-result" class="hidden bg-slate-900 border border-slate-700 p-3 rounded-lg text-sm mb-4">
+          <p class="text-emerald-400 font-semibold mb-1">Registered Successfully!</p>
+          <p class="text-slate-400 text-xs">Proxy URL: <a id="result-link" target="_blank" class="text-blue-400 hover:underline"></a></p>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200">Cancel</button>
+          <button type="submit" id="btn-submit" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-lg transition">Register</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function closeModal() {
+      document.getElementById('register-modal').classList.add('hidden');
+      document.getElementById('register-form').reset();
+      document.getElementById('register-error').classList.add('hidden');
+      document.getElementById('register-result').classList.add('hidden');
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const errBox = document.getElementById('register-error');
+      const resBox = document.getElementById('register-result');
+      const btn = document.getElementById('btn-submit');
+      const url = document.getElementById('reg-url').value;
+
+      errBox.classList.add('hidden');
+      resBox.classList.add('hidden');
+      btn.disabled = true;
+      btn.innerText = "Probing...";
+
+      try {
+        const res = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to register URL');
+
+        document.getElementById('result-link').href = data.proxy_url;
+        document.getElementById('result-link').innerText = data.proxy_url;
+        resBox.classList.remove('hidden');
+        htmx.trigger('body', 'refreshFiles');
+      } catch (err) {
+        errBox.innerText = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Register";
+      }
+    }
+  </script>
+</body>
+</html>

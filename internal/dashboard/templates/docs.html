@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkProxy API Documentation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <header class="flex items-center justify-between pb-6 border-b border-slate-800">
+      <div>
+        <h1 class="text-3xl font-extrabold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          LinkProxy API Docs
+        </h1>
+        <p class="text-sm text-slate-400 mt-1">REST API endpoints and streaming gateway usage</p>
+      </div>
+      <a href="/dashboard" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium px-4 py-2 rounded-lg transition border border-slate-700">
+        &larr; Dashboard
+      </a>
+    </header>
+
+    <div class="space-y-8 mt-8">
+      <!-- Endpoint: POST /api/proxy -->
+      <section class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="bg-blue-600/20 text-blue-400 font-mono text-xs font-semibold px-2.5 py-1 rounded border border-blue-500/30">POST</span>
+          <span class="font-mono text-base font-semibold text-slate-200">/api/proxy</span>
+        </div>
+        <p class="text-sm text-slate-400 mt-2">Canonicalizes, validates (SSRF check), probes upstream headers, and generates a deterministic identifier.</p>
+
+        <h4 class="text-xs uppercase font-semibold text-slate-400 mt-4 mb-2">Request Body</h4>
+        <pre class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-300 border border-slate-800"><code>{
+  "url": "https://example.com/archive.zip"
+}</code></pre>
+
+        <h4 class="text-xs uppercase font-semibold text-slate-400 mt-4 mb-2">Response (200 OK)</h4>
+        <pre class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-300 border border-slate-800"><code>{
+  "id": "1xK9qZa",
+  "proxy_url": "http://localhost:8080/p/1xK9qZa",
+  "filename": "archive.zip",
+  "content_type": "application/zip",
+  "size": 10485760
+}</code></pre>
+
+        <h4 class="text-xs uppercase font-semibold text-slate-400 mt-4 mb-2">cURL Example</h4>
+        <pre class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-emerald-400 border border-slate-800"><code>curl -X POST http://localhost:8080/api/proxy \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com/archive.zip"}'</code></pre>
+      </section>
+
+      <!-- Endpoint: GET /p/{id} -->
+      <section class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="bg-emerald-600/20 text-emerald-400 font-mono text-xs font-semibold px-2.5 py-1 rounded border border-emerald-500/30">GET</span>
+          <span class="font-mono text-base font-semibold text-slate-200">/p/{id}</span>
+        </div>
+        <p class="text-sm text-slate-400 mt-2">Streams the file with zero-allocation buffers. Supports HTTP Range requests and caching headers.</p>
+
+        <h4 class="text-xs uppercase font-semibold text-slate-400 mt-4 mb-2">Headers Forwarded</h4>
+        <ul class="list-disc list-inside text-xs text-slate-400 space-y-1">
+          <li><code class="text-slate-300">Range: bytes=0-1024</code> (sent by client for seeking or resume)</li>
+          <li><code class="text-slate-300">Content-Disposition: inline; filename="..."</code></li>
+          <li><code class="text-slate-300">Accept-Ranges: bytes</code></li>
+        </ul>
+
+        <h4 class="text-xs uppercase font-semibold text-slate-400 mt-4 mb-2">cURL Example</h4>
+        <pre class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-emerald-400 border border-slate-800"><code># Full download
+curl -O -J http://localhost:8080/p/1xK9qZa
+
+# Range request (e.g. video seeking)
+curl -r 0-1023 http://localhost:8080/p/1xK9qZa -o chunk.part</code></pre>
+      </section>
+
+      <!-- Endpoint: GET /health -->
+      <section class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="bg-emerald-600/20 text-emerald-400 font-mono text-xs font-semibold px-2.5 py-1 rounded border border-emerald-500/30">GET</span>
+          <span class="font-mono text-base font-semibold text-slate-200">/health</span>
+        </div>
+        <p class="text-sm text-slate-400 mt-2">Liveness and readiness health check probe.</p>
+        <pre class="bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-300 border border-slate-800 mt-3"><code>{"status": "ok"}</code></pre>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
