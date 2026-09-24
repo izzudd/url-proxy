@@ -2,7 +2,6 @@ package canonical
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"net/url"
 	"path"
@@ -101,14 +100,11 @@ func CanonicalizeURL(raw string) (string, error) {
 	return u.String(), nil
 }
 
-// GenerateID produces a deterministic 8-11 character Base62 ID from a canonical URL.
-// It takes the first 8 bytes of the SHA-256 hash (64-bit uint) and encodes in Base62.
+// GenerateID produces a deterministic 16-character Base62 ID from a canonical URL.
+// It uses 96 bits (12 bytes) of the SHA-256 hash. At 20M+ items, collision chance is < 1 in 400 trillion.
 func GenerateID(canonicalURL string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(canonicalURL))
 	sum := hasher.Sum(nil)
-
-	// Take first 8 bytes (uint64)
-	num := binary.BigEndian.Uint64(sum[:8])
-	return string(base62.FormatUint(num))
+	return base62.EncodeToString(sum[:12])
 }
