@@ -92,7 +92,7 @@ func (h *Handler) ServeFiles(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if len(files) == 0 {
-		fmt.Fprint(w, `<tr><td colspan="8" class="px-6 py-6 text-center text-slate-500">No files registered yet.</td></tr>`)
+		fmt.Fprint(w, `<tr><td colspan="7" class="px-6 py-6 text-center text-slate-500">No files registered yet.</td></tr>`)
 		return
 	}
 
@@ -101,10 +101,10 @@ func (h *Handler) ServeFiles(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `
 		<tr class="hover:bg-slate-800/30 transition">
 			<td class="px-6 py-4 font-mono text-xs text-blue-400 font-semibold">%s</td>
-			<td class="px-6 py-4 font-medium text-slate-200 max-w-[180px] truncate" title="%s">%s</td>
-			<td class="px-6 py-4 text-xs text-slate-400 max-w-[220px] truncate" title="%s">
-				<a href="%s" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 flex items-center gap-1 group">
-					<span class="truncate group-hover:underline">%s</span>
+			<td class="px-6 py-4 max-w-sm">
+				<div class="font-medium text-slate-200 truncate" title="%s">%s</div>
+				<a href="%s" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-400 hover:text-blue-400 flex items-center gap-1 mt-0.5 truncate group" title="%s">
+					<span class="truncate">%s</span>
 					<svg class="w-3 h-3 shrink-0 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
 				</a>
 			</td>

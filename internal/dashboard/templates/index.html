@@ -80,8 +80,7 @@
           <thead class="bg-slate-800/80 text-xs uppercase text-slate-400 border-b border-slate-700/80">
             <tr>
               <th class="px-6 py-3">ID</th>
-              <th class="px-6 py-3">Filename</th>
-              <th class="px-6 py-3">Original URL</th>
+              <th class="px-6 py-3">File & Remote Source</th>
               <th class="px-6 py-3">Content Type</th>
               <th class="px-6 py-3">Size</th>
               <th class="px-6 py-3">Requests</th>
@@ -90,7 +89,7 @@
             </tr>
           </thead>
           <tbody id="files-table-body" hx-get="/api/dashboard/files" hx-trigger="load, refreshFiles from:body" class="divide-y divide-slate-800">
-            <tr><td colspan="8" class="px-6 py-4 text-center text-slate-500">Loading files...</td></tr>
+            <tr><td colspan="7" class="px-6 py-4 text-center text-slate-500">Loading files...</td></tr>
           </tbody>
         </table>
       </div>
