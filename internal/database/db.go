@@ -153,6 +153,17 @@ func (d *DB) ListFiles(ctx context.Context, limit, offset int, search string) ([
 	return files, rows.Err()
 }
 
+func (d *DB) CountFiles(ctx context.Context, search string) (int64, error) {
+	var count int64
+	if search != "" {
+		pattern := "%" + search + "%"
+		err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM files WHERE filename LIKE ? OR original_url LIKE ?`, pattern, pattern).Scan(&count)
+		return count, err
+	}
+	err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM files`).Scan(&count)
+	return count, err
+}
+
 type ChartData struct {
 	Labels  []string `json:"labels"`
 	Success []int64  `json:"success"`

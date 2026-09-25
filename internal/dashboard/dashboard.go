@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"link-proxy/internal/database"
 )
@@ -78,47 +80,113 @@ func (h *Handler) ServeChart(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ServeFiles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	search := r.URL.Query().Get("search")
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 || limit > 100 {
-		limit = 50
+		limit = 20
 	}
 
-	files, err := h.db.ListFiles(ctx, limit, 0, search)
+	total, err := h.db.CountFiles(ctx, search)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	offset := (page - 1) * limit
+	files, err := h.db.ListFiles(ctx, limit, offset, search)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Render table
+	fmt.Fprint(w, `<div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-300">
+		<thead class="bg-slate-800/80 text-xs uppercase text-slate-400 border-b border-slate-700/80">
+			<tr>
+				<th class="px-6 py-3">ID</th>
+				<th class="px-6 py-3">File & Remote Source</th>
+				<th class="px-6 py-3">Content Type</th>
+				<th class="px-6 py-3">Size</th>
+				<th class="px-6 py-3">Requests</th>
+				<th class="px-6 py-3">Streamed</th>
+				<th class="px-6 py-3 text-right">Actions</th>
+			</tr>
+		</thead>
+		<tbody class="divide-y divide-slate-800">`)
+
 	if len(files) == 0 {
-		fmt.Fprint(w, `<tr><td colspan="7" class="px-6 py-6 text-center text-slate-500">No files registered yet.</td></tr>`)
-		return
+		fmt.Fprint(w, `<tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">No matching files found.</td></tr>`)
+	} else {
+		for _, f := range files {
+			proxyURL := fmt.Sprintf("%s/p/%s", h.baseURL, f.ID)
+			fmt.Fprintf(w, `
+			<tr class="hover:bg-slate-800/30 transition">
+				<td class="px-6 py-4 font-mono text-xs text-blue-400 font-semibold">%s</td>
+				<td class="px-6 py-4 max-w-sm">
+					<div class="font-medium text-slate-200 truncate" title="%s">%s</div>
+					<a href="%s" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-400 hover:text-blue-400 flex items-center gap-1 mt-0.5 truncate group" title="%s">
+						<span class="truncate">%s</span>
+						<svg class="w-3 h-3 shrink-0 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+					</a>
+				</td>
+				<td class="px-6 py-4 text-xs font-mono text-slate-400">%s</td>
+				<td class="px-6 py-4 text-xs text-slate-400">%s</td>
+				<td class="px-6 py-4 text-xs font-semibold text-slate-200">%d</td>
+				<td class="px-6 py-4 text-xs text-slate-400">%s</td>
+				<td class="px-6 py-4 text-right space-x-2">
+					<a href="%s" target="_blank" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded transition">Stream</a>
+					<button onclick="navigator.clipboard.writeText('%s')" class="text-xs bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded transition">Copy Link</button>
+				</td>
+			</tr>
+			`, f.ID, f.Filename, f.Filename, f.OriginalURL, f.OriginalURL, f.OriginalURL, f.ContentType, formatBytes(f.FileSize), f.AccessCount, formatBytes(f.BytesServed), proxyURL, proxyURL)
+		}
 	}
 
-	for _, f := range files {
-		proxyURL := fmt.Sprintf("%s/p/%s", h.baseURL, f.ID)
-		fmt.Fprintf(w, `
-		<tr class="hover:bg-slate-800/30 transition">
-			<td class="px-6 py-4 font-mono text-xs text-blue-400 font-semibold">%s</td>
-			<td class="px-6 py-4 max-w-sm">
-				<div class="font-medium text-slate-200 truncate" title="%s">%s</div>
-				<a href="%s" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-400 hover:text-blue-400 flex items-center gap-1 mt-0.5 truncate group" title="%s">
-					<span class="truncate">%s</span>
-					<svg class="w-3 h-3 shrink-0 opacity-60 group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-				</a>
-			</td>
-			<td class="px-6 py-4 text-xs font-mono text-slate-400">%s</td>
-			<td class="px-6 py-4 text-xs text-slate-400">%s</td>
-			<td class="px-6 py-4 text-xs font-semibold text-slate-200">%d</td>
-			<td class="px-6 py-4 text-xs text-slate-400">%s</td>
-			<td class="px-6 py-4 text-right space-x-2">
-				<a href="%s" target="_blank" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded transition">Stream</a>
-				<button onclick="navigator.clipboard.writeText('%s')" class="text-xs bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-2.5 py-1 rounded transition">Copy Link</button>
-			</td>
-		</tr>
-		`, f.ID, f.Filename, f.Filename, f.OriginalURL, f.OriginalURL, f.OriginalURL, f.ContentType, formatBytes(f.FileSize), f.AccessCount, formatBytes(f.BytesServed), proxyURL, proxyURL)
+	fmt.Fprint(w, `</tbody></table></div>`)
+
+	// Pagination Footer
+	start := offset + 1
+	if total == 0 {
+		start = 0
 	}
+	end := offset + len(files)
+	escapedSearch := url.QueryEscape(search)
+
+	prevBtn := fmt.Sprintf(`<button hx-get="/api/dashboard/files?page=%d&search=%s&limit=%d" hx-target="#files-table-container" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">Previous</button>`, page-1, escapedSearch, limit)
+	if page <= 1 {
+		prevBtn = `<button disabled class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-800/40 text-slate-600 cursor-not-allowed">Previous</button>`
+	}
+
+	nextBtn := fmt.Sprintf(`<button hx-get="/api/dashboard/files?page=%d&search=%s&limit=%d" hx-target="#files-table-container" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">Next</button>`, page+1, escapedSearch, limit)
+	if page >= totalPages {
+		nextBtn = `<button disabled class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-800/40 text-slate-600 cursor-not-allowed">Next</button>`
+	}
+
+	fmt.Fprintf(w, `
+	<div class="px-6 py-4 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+		<div>
+			Showing <span class="font-semibold text-slate-200">%d</span> to <span class="font-semibold text-slate-200">%d</span> of <span class="font-semibold text-slate-200">%d</span> files (Page %d of %d)
+		</div>
+		<div class="flex items-center gap-2">
+			%s
+			%s
+		</div>
+	</div>
+	`, start, end, total, page, totalPages, prevBtn, nextBtn)
 }
 
 func formatBytes(b int64) string {

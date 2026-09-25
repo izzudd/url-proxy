@@ -72,26 +72,11 @@
         <div class="flex items-center gap-2">
           <input type="text" name="search" placeholder="Search filename or URL..."
             class="bg-slate-900 border border-slate-700 text-sm rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 w-64"
-            hx-get="/api/dashboard/files" hx-trigger="keyup changed delay:300ms" hx-target="#files-table-body">
+            hx-get="/api/dashboard/files" hx-trigger="keyup changed delay:300ms" hx-target="#files-table-container">
         </div>
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-300">
-          <thead class="bg-slate-800/80 text-xs uppercase text-slate-400 border-b border-slate-700/80">
-            <tr>
-              <th class="px-6 py-3">ID</th>
-              <th class="px-6 py-3">File & Remote Source</th>
-              <th class="px-6 py-3">Content Type</th>
-              <th class="px-6 py-3">Size</th>
-              <th class="px-6 py-3">Requests</th>
-              <th class="px-6 py-3">Streamed</th>
-              <th class="px-6 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="files-table-body" hx-get="/api/dashboard/files" hx-trigger="load, refreshFiles from:body" class="divide-y divide-slate-800">
-            <tr><td colspan="7" class="px-6 py-4 text-center text-slate-500">Loading files...</td></tr>
-          </tbody>
-        </table>
+      <div id="files-table-container" hx-get="/api/dashboard/files" hx-trigger="load, refreshFiles from:body">
+        <div class="p-8 text-center text-slate-500 text-sm">Loading files...</div>
       </div>
     </div>
   </div>
