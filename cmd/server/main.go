@@ -121,6 +121,7 @@ func main() {
 		admin.Get("/dashboard", dashHandler.ServeDashboard)
 		admin.Get("/docs", dashHandler.ServeDocs)
 		admin.Get("/api/dashboard/stats", dashHandler.ServeStats)
+		admin.Get("/api/dashboard/chart", dashHandler.ServeChart)
 		admin.Get("/api/dashboard/files", dashHandler.ServeFiles)
 	})
 

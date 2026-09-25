@@ -61,6 +61,14 @@ func Open(path string) (*DB, error) {
 	);
 	CREATE INDEX IF NOT EXISTS idx_files_created ON files(created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_files_url ON files(original_url);
+
+	CREATE TABLE IF NOT EXISTS request_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		status_code INTEGER NOT NULL,
+		bytes_served INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_req_events_time ON request_events(recorded_at DESC);
 	`
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("exec schema: %w", err)
@@ -143,4 +151,54 @@ func (d *DB) ListFiles(ctx context.Context, limit, offset int, search string) ([
 		files = append(files, f)
 	}
 	return files, rows.Err()
+}
+
+type ChartData struct {
+	Labels  []string `json:"labels"`
+	Success []int64  `json:"success"`
+	Error   []int64  `json:"error"`
+}
+
+func (d *DB) RecordRequestEvent(ctx context.Context, statusCode int, bytesServed int64) error {
+	query := `INSERT INTO request_events (status_code, bytes_served) VALUES (?, ?)`
+	_, err := d.ExecContext(ctx, query, statusCode, bytesServed)
+	return err
+}
+
+func (d *DB) GetChartMetrics(ctx context.Context) (ChartData, error) {
+	query := `
+	SELECT 
+		strftime('%H:00', recorded_at) AS hr,
+		SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) AS success_cnt,
+		SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS error_cnt
+	FROM request_events
+	WHERE recorded_at >= datetime('now', '-24 hours')
+	GROUP BY hr
+	ORDER BY recorded_at ASC
+	`
+	rows, err := d.QueryContext(ctx, query)
+	if err != nil {
+		return ChartData{}, err
+	}
+	defer rows.Close()
+
+	var data ChartData
+	for rows.Next() {
+		var hr string
+		var succ, errCount int64
+		if err := rows.Scan(&hr, &succ, &errCount); err != nil {
+			return ChartData{}, err
+		}
+		data.Labels = append(data.Labels, hr)
+		data.Success = append(data.Success, succ)
+		data.Error = append(data.Error, errCount)
+	}
+
+	if len(data.Labels) == 0 {
+		data.Labels = []string{"Now"}
+		data.Success = []int64{0}
+		data.Error = []int64{0}
+	}
+
+	return data, rows.Err()
 }

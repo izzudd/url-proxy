@@ -40,6 +40,7 @@ type ProxyService struct {
 
 type accessEvent struct {
 	id          string
+	statusCode  int
 	bytesServed int64
 }
 
@@ -90,11 +91,21 @@ func NewProxyService(db *database.DB, redisAddr string, baseURL string, smallLim
 func (p *ProxyService) processAccessEvents() {
 	for ev := range p.accessCh {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		_ = p.db.RecordAccess(ctx, ev.id, ev.bytesServed)
-		if p.rdb != nil {
-			_ = p.rdb.ZIncrBy(ctx, "proxy:stats:access_count", 1, ev.id).Err()
+		_ = p.db.RecordRequestEvent(ctx, ev.statusCode, ev.bytesServed)
+		if ev.id != "" && ev.statusCode < 400 {
+			_ = p.db.RecordAccess(ctx, ev.id, ev.bytesServed)
+			if p.rdb != nil {
+				_ = p.rdb.ZIncrBy(ctx, "proxy:stats:access_count", 1, ev.id).Err()
+			}
 		}
 		cancel()
+	}
+}
+
+func (p *ProxyService) logEvent(id string, statusCode int, bytesServed int64) {
+	select {
+	case p.accessCh <- accessEvent{id: id, statusCode: statusCode, bytesServed: bytesServed}:
+	default:
 	}
 }
 
@@ -284,6 +295,7 @@ func (p *ProxyService) ServeStream(w http.ResponseWriter, r *http.Request, id st
 		rec, err = p.db.GetFile(ctx, id)
 		if err != nil {
 			http.Error(w, "File not found", http.StatusNotFound)
+			p.logEvent(id, http.StatusNotFound, 0)
 			return
 		}
 		if p.rdb != nil {
@@ -301,7 +313,7 @@ func (p *ProxyService) ServeStream(w http.ResponseWriter, r *http.Request, id st
 			w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, rec.Filename))
 			w.Header().Set("X-Cache", "HIT-REDIS-BLOB")
 			w.Write(blob)
-			p.accessCh <- accessEvent{id: id, bytesServed: int64(len(blob))}
+			p.logEvent(id, http.StatusOK, int64(len(blob)))
 			return
 		}
 	}
@@ -310,6 +322,7 @@ func (p *ProxyService) ServeStream(w http.ResponseWriter, r *http.Request, id st
 	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodGet, rec.OriginalURL, nil)
 	if err != nil {
 		http.Error(w, "Failed to create upstream request", http.StatusInternalServerError)
+		p.logEvent(id, http.StatusInternalServerError, 0)
 		return
 	}
 
@@ -321,6 +334,7 @@ func (p *ProxyService) ServeStream(w http.ResponseWriter, r *http.Request, id st
 	upstreamResp, err := p.client.Do(upstreamReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Upstream gateway error: %v", err), http.StatusBadGateway)
+		p.logEvent(id, http.StatusBadGateway, 0)
 		return
 	}
 	defer upstreamResp.Body.Close()
@@ -347,8 +361,5 @@ func (p *ProxyService) ServeStream(w http.ResponseWriter, r *http.Request, id st
 	}
 
 	// Asynchronously record access log
-	select {
-	case p.accessCh <- accessEvent{id: id, bytesServed: bytesWritten}:
-	default:
-	}
+	p.logEvent(id, upstreamResp.StatusCode, bytesWritten)
 }
