@@ -83,41 +83,41 @@ func main() {
 		proxySvc.ServeStream(w, r, id)
 	})
 
-	// API: Register URL
-	r.Post("/api/proxy", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			URL string `json:"url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
-			http.Error(w, `{"error":"Invalid request payload; 'url' is required"}`, http.StatusBadRequest)
-			return
-		}
-
-		resp, err := proxySvc.RegisterURL(r.Context(), req.URL)
-		if err != nil {
-			slog.Warn("Failed to register URL", "url", req.URL, "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
-	})
-
 	adminUser := getEnv("ADMIN_USER", "admin")
 	adminPass := getEnv("ADMIN_PASS", "admin")
 
-	// Dashboard UI & Endpoints (protected with Basic Auth)
+	// Protected Admin & Management Routes (Basic Auth)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard", http.StatusFound)
 	})
 
 	r.Group(func(admin chi.Router) {
-		admin.Use(middleware.BasicAuth("LinkProxy Dashboard", map[string]string{
+		admin.Use(middleware.BasicAuth("LinkProxy Admin", map[string]string{
 			adminUser: adminPass,
 		}))
+
+		admin.Post("/api/proxy", func(w http.ResponseWriter, r *http.Request) {
+			var req struct {
+				URL string `json:"url"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+				http.Error(w, `{"error":"Invalid request payload; 'url' is required"}`, http.StatusBadRequest)
+				return
+			}
+
+			resp, err := proxySvc.RegisterURL(r.Context(), req.URL)
+			if err != nil {
+				slog.Warn("Failed to register URL", "url", req.URL, "error", err)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(resp)
+		})
+
 		admin.Get("/dashboard", dashHandler.ServeDashboard)
 		admin.Get("/docs", dashHandler.ServeDocs)
 		admin.Get("/api/dashboard/stats", dashHandler.ServeStats)

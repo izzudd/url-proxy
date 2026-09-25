@@ -19,6 +19,10 @@ func TestDashboardBasicAuth(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("ok"))
 		})
+		admin.Post("/api/proxy", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"status":"registered"}`))
+		})
 	})
 
 	// 1. Without Auth
@@ -27,7 +31,14 @@ func TestDashboardBasicAuth(t *testing.T) {
 	r.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("expected status 401 Unauthorized, got %d", rr.Code)
+		t.Fatalf("expected status 401 Unauthorized for dashboard, got %d", rr.Code)
+	}
+
+	reqPostNoAuth := httptest.NewRequest(http.MethodPost, "/api/proxy", nil)
+	rrPostNoAuth := httptest.NewRecorder()
+	r.ServeHTTP(rrPostNoAuth, reqPostNoAuth)
+	if rrPostNoAuth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401 Unauthorized for POST /api/proxy, got %d", rrPostNoAuth.Code)
 	}
 
 	// 2. With Wrong Credentials
